@@ -1,0 +1,67 @@
+#! /usr/bin/env ruby
+
+require "rubygems"
+require "bundler/setup"
+
+require "newrelic_plugin"
+require 'yaml'
+require 'json'
+
+module Puma
+
+  class Configuration
+    attr_reader :options
+
+    def initialize(options)
+      @options = options
+    end
+
+    def control_url
+      options[:control_url].gsub("tcp","http")
+    end
+
+    def control_auth_token
+      options[:control_auth_token]
+    end
+
+  end
+end
+
+
+module PumaAgent
+
+  class Agent < NewRelic::Plugin::Agent::Base
+
+    agent_guid "com.ubxd.newrelic_puma"
+    agent_version "0.0.1"
+    agent_config_options :state_file
+    agent_human_labels("Puma Agent") { `hostname` }
+
+    def poll_cycle
+      conn = Faraday.new(:url => "#{puma_config.control_url}")
+      response = conn.get '/stats', { :token => puma_config.control_auth_token }
+      result = JSON.parse(response.body)
+      report_metric "backlog", "threads", result['backlog'].to_i
+      report_metric "running", "threads", result['running'].to_i
+    end
+
+    def puma_config
+      @puma_config ||= YAML.load_file(state_file)['config']
+    end
+
+  end
+
+  #
+  # Register this agent with the component.
+  # The ExampleAgent is the name of the module that defines this
+  # driver (the module must contain at least three classes - a
+  # PollCycle, a Metric and an Agent class, as defined above).
+  #
+  NewRelic::Plugin::Setup.install_agent :puma, PumaAgent
+
+  #
+  # Launch the agent; this never returns.
+  #
+  NewRelic::Plugin::Run.setup_and_run
+
+end
