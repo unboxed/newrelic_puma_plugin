@@ -6,6 +6,7 @@ require "bundler/setup"
 require "newrelic_plugin"
 require 'yaml'
 require 'json'
+require 'faraday'
 
 module Puma
 
