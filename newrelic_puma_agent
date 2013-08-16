@@ -38,7 +38,7 @@ module PumaAgent
   class Agent < NewRelic::Plugin::Agent::Base
 
     agent_guid "com.ubxd.newrelic_puma"
-    agent_version "0.0.1"
+    agent_version "0.0.2"
     agent_config_options :state_file
     agent_human_labels("Puma Agent") { `hostname` }
 
