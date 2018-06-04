@@ -18,5 +18,8 @@ newrelic:
 agents:
   # this is where configuration for agents belongs
   puma:
-    state_file: /location/to/puma.state
-
+    control_urls:
+    - http://1.2.3.4:9293
+    - http://5.6.7.8:9293
+    token: ABCDEFGH
+    application: MyApp

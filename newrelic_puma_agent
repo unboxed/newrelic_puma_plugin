@@ -8,53 +8,30 @@ require 'yaml'
 require 'json'
 require 'faraday'
 
-module Puma
-
-  class Configuration
-    attr_reader :options
-
-    def initialize(options)
-      @options = options
-    end
-
-    def control_url
-      options[:control_url].gsub("tcp","http")
-    end
-
-    def control_auth_token
-      options[:control_auth_token]
-    end
-
-    def control_url_and_auth_token
-      [control_url,control_auth_token]
-    end
-
-  end
-end
-
-
 module PumaAgent
-
   class Agent < NewRelic::Plugin::Agent::Base
-
     agent_guid "com.ubxd.newrelic_puma"
     agent_version "0.0.2"
-    agent_config_options :state_file
-    agent_human_labels("Puma Agent") { `hostname` }
+    agent_config_options :control_urls, :token, :application
+    agent_human_labels("Puma Agent") { application }
 
     def poll_cycle
-      control_url,control_auth_token = puma_config.control_url_and_auth_token
-      conn = Faraday.new(:url => "#{control_url}")
-      response = conn.get '/stats', { :token => control_auth_token }
-      result = JSON.parse(response.body)
-      report_metric "backlog", "threads", result['backlog'].to_i
-      report_metric "running", "threads", result['running'].to_i
-    end
+      backlog = 0
+      running = 0
 
-    def puma_config
-      YAML.load_file(state_file)['config']
-    end
+      control_urls.each do |control_url|
+        conn = Faraday.new(:url => control_url)
+        response = conn.get '/stats', { :token => token }
+        result = JSON.parse(response.body)
 
+        worker_status = result['worker_status']
+        backlog += worker_status.map { |worker| worker['last_status']['backlog'] }.inject(0){|sum,x| sum + x }
+        running += worker_status.map { |worker| worker['last_status']['running'] }.inject(0){|sum,x| sum + x }
+      end
+
+      report_metric "backlog", "threads", backlog
+      report_metric "running", "threads", running
+    end
   end
 
   #
@@ -69,5 +46,4 @@ module PumaAgent
   # Launch the agent; this never returns.
   #
   NewRelic::Plugin::Run.setup_and_run
-
 end
